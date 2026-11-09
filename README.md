@@ -106,3 +106,7 @@ Testing, code reviews, and version control are shared responsibilities.
 - **Instructor:** Prof. Essaid Meryam
 - **Project period:** September 28 – December 2, 2026
 
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch workflow, commit conventions, code standards, and local checks. Repository administrators can follow the [GitHub setup checklist](.github/REPOSITORY_SETUP.md) to activate review and merge protections.
