@@ -46,9 +46,9 @@ async function start() {
     const current = ++generation;
     pendingEvents = [];
     try {
-      const actuators = await api.listActuators();
+      const devices = await api.listDevices();
       if (current !== generation) return;
-      view.replaceAll(actuators);
+      view.replaceAll(devices);
       view.refreshPid();
       pendingEvents.forEach((event) => view.applyEvent(event));
       pendingEvents = null;
