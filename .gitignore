@@ -25,6 +25,7 @@ coverage/
 *.sqlite3
 *.db
 recordings/
+data/
 
 # Editor and operating system
 .DS_Store
