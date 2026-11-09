@@ -299,6 +299,10 @@ select {
   border-left-color: var(--active);
 }
 
+.marker[data-category='sensor'] {
+  border-left-color: var(--accent);
+}
+
 .marker[aria-pressed='true'] {
   outline: 2px solid var(--accent);
 }

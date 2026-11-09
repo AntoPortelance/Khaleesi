@@ -45,16 +45,18 @@
             </label>
             <input
               id="new-name"
-              aria-label="New actuator name"
+              aria-label="New device name"
               placeholder="Name, e.g. V-101"
               maxlength="64"
               required
             />
-            <select id="new-kind" aria-label="New actuator type">
+            <select id="new-kind" aria-label="New device type">
               <option value="valve">Valve</option>
               <option value="cylinder">Cylinder</option>
+              <option value="analog">Analog sensor</option>
+              <option value="digital">Digital sensor</option>
             </select>
-            <button type="submit" class="button button-primary">Add actuator</button>
+            <button type="submit" class="button button-primary">Add device</button>
           </form>
         </div>
 
@@ -74,16 +76,16 @@
             <div id="markers"></div>
           </div>
 
-          <aside class="detail" aria-label="Selected actuator">
-            <p id="detail-empty" class="muted">Select an actuator on the diagram.</p>
+          <aside class="detail" aria-label="Selected device">
+            <p id="detail-empty" class="muted">Select a device on the diagram.</p>
             <div id="detail-body" hidden>
               <h2 id="detail-name"></h2>
               <dl class="facts">
                 <dt>Type</dt>
                 <dd id="detail-kind"></dd>
-                <dt>Commanded state</dt>
+                <dt id="detail-state-label">Commanded state</dt>
                 <dd id="detail-state" class="state-value"></dd>
-                <dt>Last command</dt>
+                <dt id="detail-updated-label">Last command</dt>
                 <dd id="detail-updated"></dd>
               </dl>
               <div id="detail-commands" class="commands"></div>

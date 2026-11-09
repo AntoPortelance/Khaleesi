@@ -1,7 +1,5 @@
 """Upload and retrieval of the test stand's P&ID image."""
 
-import os
-import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -9,6 +7,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from khaleesi.auth import CurrentUser
+from khaleesi.files import write_atomically
 
 _HEADER_BYTES = 12
 
@@ -22,17 +21,6 @@ def detect_image_type(header: bytes) -> str | None:
     if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
         return "image/webp"
     return None
-
-
-def _write_atomically(path: Path, content: bytes) -> None:
-    descriptor, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(descriptor, "wb") as temporary_file:
-            temporary_file.write(content)
-        os.replace(temporary_name, path)
-    except BaseException:
-        Path(temporary_name).unlink(missing_ok=True)
-        raise
 
 
 router = APIRouter(prefix="/api/bench")
@@ -68,5 +56,5 @@ async def put_pid(_: CurrentUser, request: Request) -> None:
     if detect_image_type(bytes(content[:_HEADER_BYTES])) is None:
         raise HTTPException(status_code=415, detail="The image must be PNG, JPEG, or WebP")
 
-    await run_in_threadpool(_write_atomically, state.settings.pid_path, bytes(content))
+    await run_in_threadpool(write_atomically, state.settings.pid_path, bytes(content))
     await state.hub.broadcast({"type": "pid_changed"})

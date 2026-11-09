@@ -25,7 +25,7 @@ def test_layout_can_be_changed_and_is_stored(client: TestClient, app: FastAPI) -
     )
 
     assert response.status_code == 200
-    stored = app.state.db.get_actuator(valve["id"])
+    stored = app.state.devices.get_actuator(valve["id"])
     assert (stored["name"], stored["x"], stored["y"]) == ("V-200", 0.25, 0.75)
     assert stored["state"] == "CLOSED"
 
@@ -56,7 +56,7 @@ def test_command_changes_the_state_in_the_table(client: TestClient, app: FastAPI
 
     assert response.status_code == 200
     assert response.json()["state"] == "OPEN"
-    stored = app.state.db.get_actuator(valve["id"])
+    stored = app.state.devices.get_actuator(valve["id"])
     assert stored["state"] == "OPEN"
     assert stored["updated_by"] == USERNAME
     assert stored["updated_at"] is not None
@@ -70,7 +70,7 @@ def test_invalid_target_leaves_the_state_unchanged(
     response = client.post(f"/api/actuators/{valve['id']}/command", json={"target": target})
 
     assert response.status_code == 422
-    assert app.state.db.get_actuator(valve["id"])["state"] == "CLOSED"
+    assert app.state.devices.get_actuator(valve["id"])["state"] == "CLOSED"
 
 
 def test_command_on_unknown_actuator_is_not_found(client: TestClient) -> None:
