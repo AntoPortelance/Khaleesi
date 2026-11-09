@@ -1,0 +1,388 @@
+:root {
+  color-scheme: dark;
+  --bg: #0e1317;
+  --panel: #161d23;
+  --panel-raised: #1e272f;
+  --line: #2c3842;
+  --text: #e8eef3;
+  --muted: #93a3b0;
+  --accent: #f2a93b;
+  --active: #3fb27f;
+  --inactive: #7f8e9b;
+  --danger: #e8634f;
+  --font-data: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    15px/1.45 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+input,
+select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.brand {
+  margin: 0;
+  color: var(--accent);
+  font-family: var(--font-data);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-raised);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.button-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #1b1408;
+  font-weight: 600;
+}
+
+.button-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.message {
+  margin: 0 0 12px;
+}
+
+.message-error {
+  color: var(--danger);
+}
+
+/* Sign-in page */
+
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  padding: 16px;
+  place-items: center;
+}
+
+.login-card {
+  width: min(360px, 100%);
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.login-subtitle {
+  margin: 4px 0 24px;
+  color: var(--muted);
+}
+
+#login-form {
+  display: grid;
+  gap: 8px;
+}
+
+#login-form .button {
+  margin-top: 12px;
+}
+
+/* Application frame */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.session {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.status {
+  color: var(--danger);
+  font-family: var(--font-data);
+  font-size: 13px;
+}
+
+.status[data-online='true'] {
+  color: var(--active);
+}
+
+.user-name {
+  color: var(--muted);
+}
+
+.banner {
+  padding: 10px 16px;
+  background: var(--danger);
+  color: #1c0906;
+  font-weight: 600;
+}
+
+.content {
+  padding: 16px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Control tab */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+.pid-stage {
+  position: relative;
+  min-height: 320px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f4f6f7;
+  overflow: hidden;
+}
+
+/* The stage must match the image exactly: marker positions are fractions of its size. */
+.pid-stage.has-image {
+  min-height: 0;
+}
+
+#pid-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pid-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  margin: 0;
+  padding: 24px;
+  color: #5a6873;
+  text-align: center;
+  place-items: center;
+}
+
+.marker {
+  position: absolute;
+  display: grid;
+  max-width: 130px;
+  padding: 3px 8px;
+  border: 1px solid #0e1317;
+  border-left: 5px solid var(--inactive);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+  color: #101820;
+  font: 12px/1.25 var(--font-data);
+  text-align: left;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  user-select: none;
+}
+
+.marker[data-state='OPEN'],
+.marker[data-state='EXTENDED'] {
+  border-left-color: var(--active);
+}
+
+.marker[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+}
+
+.marker-name {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editing .marker {
+  border-style: dashed;
+  cursor: grab;
+  touch-action: none;
+}
+
+.detail {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.detail #detail-name {
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 16px;
+}
+
+.facts dt {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.state-value {
+  font-family: var(--font-data);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.commands {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.detail-edit {
+  display: grid;
+  gap: 8px;
+}
+
+.detail-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-tab {
+  padding: 64px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .session {
+    margin-left: 0;
+  }
+
+  .tabs {
+    order: 3;
+    width: 100%;
+  }
+}

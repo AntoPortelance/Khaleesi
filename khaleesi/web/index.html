@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Khaleesi</title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="brand">Khaleesi</span>
+      <nav class="tabs" role="tablist" aria-label="Main sections">
+        <button class="tab" role="tab" data-tab="control" aria-selected="true">Control</button>
+        <button class="tab" role="tab" data-tab="visualization" aria-selected="false">
+          Visualization
+        </button>
+        <button class="tab" role="tab" data-tab="recorded" aria-selected="false">
+          Recorded Data
+        </button>
+      </nav>
+      <div class="session">
+        <span id="connection-status" class="status" data-online="false">Connecting…</span>
+        <span id="user-name" class="user-name"></span>
+        <button id="logout" class="button">Log out</button>
+      </div>
+    </header>
+
+    <div id="connection-banner" class="banner" role="alert" hidden>
+      Connection to the server lost. Commands are disabled while reconnecting.
+    </div>
+
+    <main class="content">
+      <section id="tab-control" role="tabpanel" aria-label="Control">
+        <div class="toolbar">
+          <button id="edit-toggle" class="button" aria-pressed="false">Edit layout</button>
+          <form id="edit-tools" class="edit-tools" hidden>
+            <label class="button">
+              Load P&amp;ID image
+              <input
+                id="pid-file"
+                class="visually-hidden"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+              />
+            </label>
+            <input
+              id="new-name"
+              aria-label="New actuator name"
+              placeholder="Name, e.g. V-101"
+              maxlength="64"
+              required
+            />
+            <select id="new-kind" aria-label="New actuator type">
+              <option value="valve">Valve</option>
+              <option value="cylinder">Cylinder</option>
+            </select>
+            <button type="submit" class="button button-primary">Add actuator</button>
+          </form>
+        </div>
+
+        <p id="control-message" class="message message-error" role="alert" hidden></p>
+
+        <div class="workspace">
+          <div id="pid-stage" class="pid-stage">
+            <img
+              id="pid-image"
+              alt="Piping and instrumentation diagram of the test stand"
+              draggable="false"
+              hidden
+            />
+            <p id="pid-empty" class="pid-empty">
+              No P&amp;ID loaded yet. Choose “Edit layout” to load one.
+            </p>
+            <div id="markers"></div>
+          </div>
+
+          <aside class="detail" aria-label="Selected actuator">
+            <p id="detail-empty" class="muted">Select an actuator on the diagram.</p>
+            <div id="detail-body" hidden>
+              <h2 id="detail-name"></h2>
+              <dl class="facts">
+                <dt>Type</dt>
+                <dd id="detail-kind"></dd>
+                <dt>Commanded state</dt>
+                <dd id="detail-state" class="state-value"></dd>
+                <dt>Last command</dt>
+                <dd id="detail-updated"></dd>
+              </dl>
+              <div id="detail-commands" class="commands"></div>
+              <form id="detail-edit" class="detail-edit" hidden>
+                <label for="detail-rename">Name</label>
+                <input id="detail-rename" maxlength="64" required />
+                <div class="detail-edit-actions">
+                  <button type="submit" class="button">Rename</button>
+                  <button id="detail-delete" type="button" class="button button-danger">
+                    Remove
+                  </button>
+                </div>
+              </form>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="tab-visualization" role="tabpanel" aria-label="Visualization" hidden>
+        <div class="empty-tab">
+          <h2>No data yet</h2>
+          <p class="muted">Live sensor graphs will appear here once sensors are connected.</p>
+        </div>
+      </section>
+
+      <section id="tab-recorded" role="tabpanel" aria-label="Recorded Data" hidden>
+        <div class="empty-tab">
+          <h2>No data yet</h2>
+          <p class="muted">Recorded tests will appear here once measurements are stored.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

@@ -6,7 +6,15 @@ Khaleesi is a Software Engineering for Robotics team project. It aims to separat
 
 ## Project status
 
-The project is in the planning and design stage based on the available project documentation. The features and technical choices below describe the intended system; they are not a list of verified, implemented capabilities.
+A first version is under development. It provides sign-in, the three main tabs, P&ID loading, actuator placement, and actuator commands shared live between all connected screens.
+
+In this version:
+
+- A command is applied as soon as the server receives a valid order: the state is written to the database and sent to every screen. **The displayed state is the commanded state.** No hardware is driven and no feedback is measured yet.
+- Sensor acquisition exists only as method signatures in `khaleesi/acquisition.py`, so the Visualization and Recorded Data tabs have no data to show.
+- Network access is limited to the Raspberry Pi's own Wi-Fi network. Internet access and multi-factor authentication are planned for later.
+
+The other features and technical choices below describe the intended system; they are not a list of verified, implemented capabilities.
 
 The initial working version is scheduled for demonstration on **December 2, 2026**.
 
@@ -46,12 +54,12 @@ The initial working version is scheduled for demonstration on **December 2, 2026
 
 | Component | Planned technology or responsibility |
 | --- | --- |
-| Web interface | HTML, CSS, and JavaScript |
-| Server | Python; API, authentication, and test logic |
+| Web interface | HTML, CSS, and JavaScript, without a build step |
+| Server | Python and FastAPI; API, authentication, and test logic |
 | Client–server communication | HTTPS and WebSocket |
-| Data storage | SQLite or MySQL; final choice to be confirmed |
+| Data storage | SQLite |
 | Hardware interface | Sensor acquisition and actuator control |
-| Prototype hardware | Raspberry Pi, LEDs, resistors, and an optional sensor |
+| Prototype hardware | Raspberry Pi 5, LEDs, resistors, and an optional sensor |
 | Development tools | Visual Studio Code, Git, and GitHub |
 
 The server will coordinate browser clients, data storage, and hardware communication. Acquisition and display will be handled separately to support responsive monitoring while measurements are collected.
@@ -72,7 +80,19 @@ The following are outside the initial scope:
 
 ## Getting started
 
-Installation and launch instructions will be added once the initial implementation, dependencies, and application entry points are available.
+To run the application on a development computer, with Python 3.11 or newer:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt -r requirements-dev.txt
+python -m khaleesi.create_user alice
+KHALEESI_COOKIE_SECURE=false python -m khaleesi
+```
+
+Then open <http://127.0.0.1:8000> and sign in. Data is stored in `data/`. Disabling secure cookies is only for local development without HTTPS.
+
+Run the tests with `python -m pytest tests`. To install on the Raspberry Pi 5, follow [deploy/README.md](deploy/README.md).
 
 The planned development sequence is:
 

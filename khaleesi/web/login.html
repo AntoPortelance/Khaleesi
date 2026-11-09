@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Khaleesi — Sign in</title>
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <h1 class="brand">Khaleesi</h1>
+      <p class="login-subtitle">Test-stand control</p>
+      <form id="login-form">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required autofocus />
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
+        <p id="login-error" class="message message-error" role="alert" hidden></p>
+        <!-- Enabled by login.js: a native submission would put the password in the URL. -->
+        <button type="submit" class="button button-primary" disabled>Sign in</button>
+      </form>
+    </main>
+    <script type="module" src="/js/login.js"></script>
+  </body>
+</html>
