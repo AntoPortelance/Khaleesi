@@ -12,16 +12,21 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS actuators (
+CREATE TABLE IF NOT EXISTS tests (
     id         TEXT PRIMARY KEY,
     name       TEXT NOT NULL,
-    kind       TEXT NOT NULL CHECK (kind IN ('valve', 'cylinder')),
-    state      TEXT NOT NULL,
-    x          REAL NOT NULL,
-    y          REAL NOT NULL,
-    updated_by TEXT,
-    updated_at TEXT
+    operator   TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at   TEXT
 );
+
+CREATE TABLE IF NOT EXISTS measurements (
+    test_id   TEXT NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+    sensor_id TEXT NOT NULL,
+    timestamp REAL NOT NULL,
+    value     REAL NOT NULL,
+    PRIMARY KEY (test_id, sensor_id, timestamp)
+) WITHOUT ROWID;
 """
 
 
@@ -35,8 +40,10 @@ class Database:
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self._path)
+        connection = sqlite3.connect(self._path, timeout=10.0)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("PRAGMA synchronous=NORMAL")
         try:
             with connection:
                 yield connection
@@ -47,6 +54,8 @@ class Database:
         with self._transaction() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(_SCHEMA)
+
+    # --- Users ---
 
     def create_user(self, username: str, password_hash: str) -> None:
         try:
@@ -65,52 +74,76 @@ class Database:
             ).fetchone()
         return row["password_hash"] if row else None
 
-    def list_actuators(self) -> list[dict]:
+    # --- Tests ---
+
+    def create_test(self, test_id: str, name: str, operator: str, started_at: str) -> dict:
         with self._transaction() as connection:
-            rows = connection.execute("SELECT * FROM actuators ORDER BY name").fetchall()
+            connection.execute(
+                "INSERT INTO tests (id, name, operator, started_at) VALUES (?, ?, ?, ?)",
+                (test_id, name, operator, started_at),
+            )
+            return self._select_test(connection, test_id)
+
+    def end_test(self, test_id: str, ended_at: str) -> dict | None:
+        """Closes a test. A test that is already closed keeps its original end time."""
+        with self._transaction() as connection:
+            connection.execute(
+                "UPDATE tests SET ended_at = ? WHERE id = ? AND ended_at IS NULL",
+                (ended_at, test_id),
+            )
+            return self._select_test(connection, test_id)
+
+    def get_test(self, test_id: str) -> dict | None:
+        with self._transaction() as connection:
+            return self._select_test(connection, test_id)
+
+    def list_tests(self) -> list[dict]:
+        with self._transaction() as connection:
+            rows = connection.execute("SELECT * FROM tests ORDER BY started_at DESC").fetchall()
         return [dict(row) for row in rows]
 
-    def get_actuator(self, actuator_id: str) -> dict | None:
-        with self._transaction() as connection:
-            return self._select_actuator(connection, actuator_id)
+    # --- Measurements ---
 
-    def add_actuator(
-        self, actuator_id: str, name: str, kind: str, state: str, x: float, y: float
-    ) -> dict:
+    def insert_measurements(self, test_id: str, batch: list[dict]) -> None:
+        """Stores a batch in one transaction, so it is written entirely or not at all.
+
+        Each item is {"sensor_id": str, "timestamp": float, "value": float}. An unknown
+        test or a duplicate (test, sensor, timestamp) raises sqlite3.IntegrityError.
+        """
+        rows = [(test_id, m["sensor_id"], m["timestamp"], m["value"]) for m in batch]
         with self._transaction() as connection:
-            connection.execute(
-                "INSERT INTO actuators (id, name, kind, state, x, y) VALUES (?, ?, ?, ?, ?, ?)",
-                (actuator_id, name, kind, state, x, y),
+            connection.executemany(
+                "INSERT INTO measurements (test_id, sensor_id, timestamp, value) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
             )
-            return self._select_actuator(connection, actuator_id)
 
-    def update_actuator_layout(
-        self, actuator_id: str, name: str | None, x: float | None, y: float | None
-    ) -> dict | None:
+    def query_measurements(
+        self,
+        test_id: str,
+        sensor_id: str | None = None,
+        t_start: float | None = None,
+        t_end: float | None = None,
+        limit: int = 100_000,
+    ) -> list[dict]:
+        query = "SELECT sensor_id, timestamp, value FROM measurements WHERE test_id = ?"
+        params: list = [test_id]
+        if sensor_id is not None:
+            query += " AND sensor_id = ?"
+            params.append(sensor_id)
+        if t_start is not None:
+            query += " AND timestamp >= ?"
+            params.append(t_start)
+        if t_end is not None:
+            query += " AND timestamp <= ?"
+            params.append(t_end)
+        query += " ORDER BY timestamp LIMIT ?"
+        params.append(limit)
         with self._transaction() as connection:
-            connection.execute(
-                "UPDATE actuators SET name = COALESCE(?, name), x = COALESCE(?, x), "
-                "y = COALESCE(?, y) WHERE id = ?",
-                (name, x, y, actuator_id),
-            )
-            return self._select_actuator(connection, actuator_id)
-
-    def set_actuator_state(
-        self, actuator_id: str, state: str, updated_by: str, updated_at: str
-    ) -> dict | None:
-        with self._transaction() as connection:
-            connection.execute(
-                "UPDATE actuators SET state = ?, updated_by = ?, updated_at = ? WHERE id = ?",
-                (state, updated_by, updated_at, actuator_id),
-            )
-            return self._select_actuator(connection, actuator_id)
-
-    def delete_actuator(self, actuator_id: str) -> bool:
-        with self._transaction() as connection:
-            cursor = connection.execute("DELETE FROM actuators WHERE id = ?", (actuator_id,))
-            return cursor.rowcount > 0
+            rows = connection.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
 
     @staticmethod
-    def _select_actuator(connection: sqlite3.Connection, actuator_id: str) -> dict | None:
-        row = connection.execute("SELECT * FROM actuators WHERE id = ?", (actuator_id,)).fetchone()
+    def _select_test(connection: sqlite3.Connection, test_id: str) -> dict | None:
+        row = connection.execute("SELECT * FROM tests WHERE id = ?", (test_id,)).fetchone()
         return dict(row) if row else None
