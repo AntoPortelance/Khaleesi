@@ -1,4 +1,10 @@
-"""SQLite storage. Every SQL statement of the application lives in this module."""
+"""SQLite storage of user accounts, test runs, and measurements.
+
+Every SQL statement of the application lives here. Sensors and actuators are stored
+elsewhere (see device_store.py), so a measurement refers to its sensor by a plain
+identifier, without a foreign key. A test run refers to its operator by a real
+foreign key on users.
+"""
 
 import sqlite3
 from collections.abc import Iterator
@@ -13,11 +19,11 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS tests (
-    id         TEXT PRIMARY KEY,
-    name       TEXT NOT NULL,
-    operator   TEXT NOT NULL,
-    started_at TEXT NOT NULL,
-    ended_at   TEXT
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    operator_id INTEGER NOT NULL REFERENCES users(id),
+    started_at  TEXT NOT NULL,
+    ended_at    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS measurements (
@@ -28,6 +34,12 @@ CREATE TABLE IF NOT EXISTS measurements (
     PRIMARY KEY (test_id, sensor_id, timestamp)
 ) WITHOUT ROWID;
 """
+
+_SELECT_TEST = (
+    "SELECT tests.id, tests.name, tests.operator_id, users.username AS operator, "
+    "tests.started_at, tests.ended_at "
+    "FROM tests JOIN users ON users.id = tests.operator_id"
+)
 
 
 class UserExistsError(Exception):
@@ -74,13 +86,21 @@ class Database:
             ).fetchone()
         return row["password_hash"] if row else None
 
+    def find_user_id(self, username: str) -> int | None:
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT id FROM users WHERE username = ?", (username,)
+            ).fetchone()
+        return row["id"] if row else None
+
     # --- Tests ---
 
-    def create_test(self, test_id: str, name: str, operator: str, started_at: str) -> dict:
+    def create_test(self, test_id: str, name: str, operator_id: int, started_at: str) -> dict:
+        """An unknown operator_id raises sqlite3.IntegrityError."""
         with self._transaction() as connection:
             connection.execute(
-                "INSERT INTO tests (id, name, operator, started_at) VALUES (?, ?, ?, ?)",
-                (test_id, name, operator, started_at),
+                "INSERT INTO tests (id, name, operator_id, started_at) VALUES (?, ?, ?, ?)",
+                (test_id, name, operator_id, started_at),
             )
             return self._select_test(connection, test_id)
 
@@ -99,7 +119,9 @@ class Database:
 
     def list_tests(self) -> list[dict]:
         with self._transaction() as connection:
-            rows = connection.execute("SELECT * FROM tests ORDER BY started_at DESC").fetchall()
+            rows = connection.execute(
+                f"{_SELECT_TEST} ORDER BY tests.started_at DESC"
+            ).fetchall()
         return [dict(row) for row in rows]
 
     # --- Measurements ---
@@ -145,5 +167,5 @@ class Database:
 
     @staticmethod
     def _select_test(connection: sqlite3.Connection, test_id: str) -> dict | None:
-        row = connection.execute("SELECT * FROM tests WHERE id = ?", (test_id,)).fetchone()
+        row = connection.execute(f"{_SELECT_TEST} WHERE tests.id = ?", (test_id,)).fetchone()
         return dict(row) if row else None
