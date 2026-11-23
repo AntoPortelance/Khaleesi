@@ -299,12 +299,42 @@ select {
   border-left-color: var(--active);
 }
 
-/* Sensors are rounded like instrument bubbles, to tell them apart from actuators. */
+/*
+ * Sensors are drawn without a frame, so the diagram stays readable: a dot on the sensor's
+ * position, with the name and the value beside it.
+ */
 .marker[data-category='sensor'] {
-  padding: 3px 12px;
-  border-left-width: 1px;
-  border-radius: 999px;
-  text-align: center;
+  grid-template-columns: 10px auto;
+  column-gap: 6px;
+  align-items: center;
+  max-width: none;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 80%);
+  box-shadow: none;
+  white-space: nowrap;
+  /* The dot, not the label, sits on the sensor's position. */
+  transform: translate(-5px, -50%);
+}
+
+.marker[data-category='sensor']::before {
+  box-sizing: border-box;
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #3d4a55;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+}
+
+.marker[data-category='sensor'] .marker-name {
+  color: #3d4a55;
+}
+
+.marker[data-category='sensor'] > span:last-child {
+  color: #5a6873;
 }
 
 .marker[aria-pressed='true'] {
@@ -319,7 +349,6 @@ select {
 }
 
 .editing .marker {
-  border-style: dashed;
   cursor: grab;
   touch-action: none;
 }
