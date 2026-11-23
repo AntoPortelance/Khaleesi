@@ -1,9 +1,9 @@
-"""SQLite storage of user accounts, test runs, and measurements.
+"""SQLite storage of user accounts, sensors, test runs, and measurements.
 
-Every SQL statement of the application lives here. Sensors and actuators are stored
-elsewhere (see device_store.py), so a measurement refers to its sensor by a plain
-identifier, without a foreign key. A test run refers to its operator by a real
-foreign key on users.
+Every SQL statement of the application lives here. Sensor positions and types stay in
+device_store.py (devices.json); this module only keeps the identity of each sensor so
+that measurements can reference a real sensor row. A measurement may belong to a test
+run, or to none.
 """
 
 import sqlite3
@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+# Timestamps are stored as seconds since the Unix epoch (SQLite keeps them as numbers).
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY,
@@ -18,8 +19,13 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS sensors (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS tests (
-    id          TEXT PRIMARY KEY,
+    id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL,
     operator_id INTEGER NOT NULL REFERENCES users(id),
     started_at  TEXT NOT NULL,
@@ -27,12 +33,15 @@ CREATE TABLE IF NOT EXISTS tests (
 );
 
 CREATE TABLE IF NOT EXISTS measurements (
-    test_id   TEXT NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
-    sensor_id TEXT NOT NULL,
-    timestamp REAL NOT NULL,
+    sensor_id INTEGER NOT NULL REFERENCES sensors(id),
+    timestamp TIMESTAMP NOT NULL,
     value     REAL NOT NULL,
-    PRIMARY KEY (test_id, sensor_id, timestamp)
+    test_id   INTEGER REFERENCES tests(id),
+    PRIMARY KEY (sensor_id, timestamp)
 ) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS idx_measurements_test
+    ON measurements (test_id, sensor_id, timestamp);
 """
 
 _SELECT_TEST = (
@@ -93,18 +102,44 @@ class Database:
             ).fetchone()
         return row["id"] if row else None
 
+    # --- Sensors ---
+
+    def add_sensor(self, name: str) -> dict:
+        """Creates a sensor and returns it with its generated integer id."""
+        with self._transaction() as connection:
+            cursor = connection.execute("INSERT INTO sensors (name) VALUES (?)", (name,))
+            return {"id": cursor.lastrowid, "name": name}
+
+    def rename_sensor(self, sensor_id: int, name: str) -> bool:
+        with self._transaction() as connection:
+            cursor = connection.execute(
+                "UPDATE sensors SET name = ? WHERE id = ?", (name, sensor_id)
+            )
+            return cursor.rowcount > 0
+
+    def delete_sensor(self, sensor_id: int) -> bool:
+        """Refused with sqlite3.IntegrityError while measurements still use the sensor."""
+        with self._transaction() as connection:
+            cursor = connection.execute("DELETE FROM sensors WHERE id = ?", (sensor_id,))
+            return cursor.rowcount > 0
+
+    def list_sensors(self) -> list[dict]:
+        with self._transaction() as connection:
+            rows = connection.execute("SELECT * FROM sensors ORDER BY name").fetchall()
+        return [dict(row) for row in rows]
+
     # --- Tests ---
 
-    def create_test(self, test_id: str, name: str, operator_id: int, started_at: str) -> dict:
-        """An unknown operator_id raises sqlite3.IntegrityError."""
+    def create_test(self, name: str, operator_id: int, started_at: str) -> dict:
+        """The id is generated. An unknown operator_id raises sqlite3.IntegrityError."""
         with self._transaction() as connection:
-            connection.execute(
-                "INSERT INTO tests (id, name, operator_id, started_at) VALUES (?, ?, ?, ?)",
-                (test_id, name, operator_id, started_at),
+            cursor = connection.execute(
+                "INSERT INTO tests (name, operator_id, started_at) VALUES (?, ?, ?)",
+                (name, operator_id, started_at),
             )
-            return self._select_test(connection, test_id)
+            return self._select_test(connection, cursor.lastrowid)
 
-    def end_test(self, test_id: str, ended_at: str) -> dict | None:
+    def end_test(self, test_id: int, ended_at: str) -> dict | None:
         """Closes a test. A test that is already closed keeps its original end time."""
         with self._transaction() as connection:
             connection.execute(
@@ -113,7 +148,7 @@ class Database:
             )
             return self._select_test(connection, test_id)
 
-    def get_test(self, test_id: str) -> dict | None:
+    def get_test(self, test_id: int) -> dict | None:
         with self._transaction() as connection:
             return self._select_test(connection, test_id)
 
@@ -126,30 +161,35 @@ class Database:
 
     # --- Measurements ---
 
-    def insert_measurements(self, test_id: str, batch: list[dict]) -> None:
+    def insert_measurements(self, test_id: int | None, batch: list[dict]) -> None:
         """Stores a batch in one transaction, so it is written entirely or not at all.
 
-        Each item is {"sensor_id": str, "timestamp": float, "value": float}. An unknown
-        test or a duplicate (test, sensor, timestamp) raises sqlite3.IntegrityError.
+        Each item is {"sensor_id": int, "timestamp": float, "value": float}. Pass
+        test_id=None for measurements taken outside any test. An unknown sensor or
+        test, or a duplicate (sensor, timestamp), raises sqlite3.IntegrityError.
         """
-        rows = [(test_id, m["sensor_id"], m["timestamp"], m["value"]) for m in batch]
+        rows = [(m["sensor_id"], m["timestamp"], m["value"], test_id) for m in batch]
         with self._transaction() as connection:
             connection.executemany(
-                "INSERT INTO measurements (test_id, sensor_id, timestamp, value) "
+                "INSERT INTO measurements (sensor_id, timestamp, value, test_id) "
                 "VALUES (?, ?, ?, ?)",
                 rows,
             )
 
     def query_measurements(
         self,
-        test_id: str,
-        sensor_id: str | None = None,
+        test_id: int | None = None,
+        sensor_id: int | None = None,
         t_start: float | None = None,
         t_end: float | None = None,
         limit: int = 100_000,
     ) -> list[dict]:
-        query = "SELECT sensor_id, timestamp, value FROM measurements WHERE test_id = ?"
-        params: list = [test_id]
+        """Every filter is optional; without test_id, measurements of any test are read."""
+        query = "SELECT sensor_id, timestamp, value, test_id FROM measurements WHERE 1 = 1"
+        params: list = []
+        if test_id is not None:
+            query += " AND test_id = ?"
+            params.append(test_id)
         if sensor_id is not None:
             query += " AND sensor_id = ?"
             params.append(sensor_id)
@@ -166,6 +206,6 @@ class Database:
         return [dict(row) for row in rows]
 
     @staticmethod
-    def _select_test(connection: sqlite3.Connection, test_id: str) -> dict | None:
+    def _select_test(connection: sqlite3.Connection, test_id: int) -> dict | None:
         row = connection.execute(f"{_SELECT_TEST} WHERE tests.id = ?", (test_id,)).fetchone()
         return dict(row) if row else None
