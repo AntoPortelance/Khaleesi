@@ -154,9 +154,7 @@ class Database:
 
     def list_tests(self) -> list[dict]:
         with self._transaction() as connection:
-            rows = connection.execute(
-                f"{_SELECT_TEST} ORDER BY tests.started_at DESC"
-            ).fetchall()
+            rows = connection.execute(f"{_SELECT_TEST} ORDER BY tests.started_at DESC").fetchall()
         return [dict(row) for row in rows]
 
     # --- Measurements ---
