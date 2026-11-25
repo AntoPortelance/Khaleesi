@@ -7,6 +7,11 @@ export class ApiError extends Error {
 
 function describeError(detail) {
   if (typeof detail === 'string') return detail;
+  // Pydantic reports a list of problems: the first one names the field.
+  if (Array.isArray(detail) && detail[0]?.msg) {
+    const field = detail[0].loc?.at(-1);
+    return field ? `${field}: ${detail[0].msg}` : detail[0].msg;
+  }
   return 'The request was rejected. Check the values and try again.';
 }
 
@@ -31,17 +36,37 @@ function sendJson(method, path, body) {
   });
 }
 
+const id = (value) => encodeURIComponent(value);
+
 export const api = {
   login: (username, password) => sendJson('POST', '/api/auth/login', { username, password }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   me: () => request('/api/auth/me'),
+
+  listTabs: () => request('/api/tabs'),
+  addTab: (tab) => sendJson('POST', '/api/tabs', tab),
+  updateTab: (tabId, changes) => sendJson('PATCH', `/api/tabs/${id(tabId)}`, changes),
+  deleteTab: (tabId) => request(`/api/tabs/${id(tabId)}`, { method: 'DELETE' }),
+  pidUrl: (tabId) => `/api/tabs/${id(tabId)}/pid`,
+  uploadPid: (tabId, file) => request(`/api/tabs/${id(tabId)}/pid`, { method: 'PUT', body: file }),
+
   listDevices: () => request('/api/devices'),
   addSensor: (sensor) => sendJson('POST', '/api/sensors', sensor),
-  updateSensor: (id, changes) => sendJson('PATCH', `/api/sensors/${id}`, changes),
-  deleteSensor: (id) => request(`/api/sensors/${id}`, { method: 'DELETE' }),
+  updateSensor: (sensorId, changes) => sendJson('PATCH', `/api/sensors/${id(sensorId)}`, changes),
+  deleteSensor: (sensorId) => request(`/api/sensors/${id(sensorId)}`, { method: 'DELETE' }),
+  listSensorTypes: () => request('/api/sensor-types'),
+  addSensorType: (sensorType) => sendJson('POST', '/api/sensor-types', sensorType),
   addActuator: (actuator) => sendJson('POST', '/api/actuators', actuator),
-  updateActuator: (id, changes) => sendJson('PATCH', `/api/actuators/${id}`, changes),
-  deleteActuator: (id) => request(`/api/actuators/${id}`, { method: 'DELETE' }),
-  commandActuator: (id, target) => sendJson('POST', `/api/actuators/${id}/command`, { target }),
-  uploadPid: (file) => request('/api/bench/pid', { method: 'PUT', body: file }),
+  updateActuator: (actuatorId, changes) =>
+    sendJson('PATCH', `/api/actuators/${id(actuatorId)}`, changes),
+  deleteActuator: (actuatorId) => request(`/api/actuators/${id(actuatorId)}`, { method: 'DELETE' }),
+  commandActuator: (actuatorId, target) =>
+    sendJson('POST', `/api/actuators/${id(actuatorId)}/command`, { target }),
+  emergencyStop: () => request('/api/emergency-stop', { method: 'POST' }),
+
+  listSteps: (tabId) => request(`/api/tabs/${id(tabId)}/steps`),
+  addStep: (tabId, text) => sendJson('POST', `/api/tabs/${id(tabId)}/steps`, { text }),
+  updateStep: (stepId, changes) => sendJson('PATCH', `/api/steps/${id(stepId)}`, changes),
+  deleteStep: (stepId) => request(`/api/steps/${id(stepId)}`, { method: 'DELETE' }),
+  resetSteps: (tabId) => request(`/api/tabs/${id(tabId)}/steps/reset`, { method: 'POST' }),
 };
