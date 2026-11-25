@@ -1,6 +1,6 @@
-"""Actuator changes: one operation at a time per actuator, then a broadcast to all screens.
+"""Device changes: one operation at a time per device, then a broadcast to all screens.
 
-A command is considered applied as soon as it is valid and written to the database. The
+A command is considered applied as soon as it is valid and written to the device file. The
 stored state is the commanded state: no hardware is driven and no feedback is measured yet.
 """
 
@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 from fastapi.concurrency import run_in_threadpool
 
-from khaleesi.database import Database
+from khaleesi.device_store import DeviceStore
 from khaleesi.events import EventHub
 
 ALLOWED_STATES = {
@@ -24,8 +24,12 @@ class ActuatorNotFoundError(Exception):
     """No actuator has this identifier."""
 
 
-class ActuatorBusyError(Exception):
-    """Another operation is in progress on this actuator."""
+class SensorNotFoundError(Exception):
+    """No sensor has this identifier."""
+
+
+class DeviceBusyError(Exception):
+    """Another operation is in progress on this device."""
 
 
 class InvalidTargetError(Exception):
@@ -38,26 +42,26 @@ def present(actuator: dict) -> dict:
 
 
 class CommandService:
-    def __init__(self, db: Database, hub: EventHub) -> None:
-        self._db = db
+    def __init__(self, devices: DeviceStore, hub: EventHub) -> None:
+        self._devices = devices
         self._hub = hub
         self._busy: set[str] = set()
 
     @asynccontextmanager
-    async def _exclusive(self, actuator_id: str) -> AsyncIterator[None]:
+    async def _exclusive(self, device_id: str) -> AsyncIterator[None]:
         # Checking and adding happen without an await in between, so the event loop
         # makes this atomic. It relies on the server running as a single process.
-        if actuator_id in self._busy:
-            raise ActuatorBusyError(actuator_id)
-        self._busy.add(actuator_id)
+        if device_id in self._busy:
+            raise DeviceBusyError(device_id)
+        self._busy.add(device_id)
         try:
             yield
         finally:
-            self._busy.discard(actuator_id)
+            self._busy.discard(device_id)
 
     async def execute(self, actuator_id: str, target: str, username: str) -> dict:
         async with self._exclusive(actuator_id):
-            actuator = await run_in_threadpool(self._db.get_actuator, actuator_id)
+            actuator = await run_in_threadpool(self._devices.get_actuator, actuator_id)
             if actuator is None:
                 raise ActuatorNotFoundError(actuator_id)
             if target not in ALLOWED_STATES[actuator["kind"]]:
@@ -65,28 +69,46 @@ class CommandService:
 
             timestamp = datetime.now(UTC).isoformat()
             updated = await run_in_threadpool(
-                self._db.set_actuator_state, actuator_id, target, username, timestamp
+                self._devices.set_actuator_state, actuator_id, target, username, timestamp
             )
-            return await self._publish_update(updated)
+            return await self._publish_actuator(updated)
 
     async def update_layout(
         self, actuator_id: str, name: str | None, x: float | None, y: float | None
     ) -> dict:
         async with self._exclusive(actuator_id):
             updated = await run_in_threadpool(
-                self._db.update_actuator_layout, actuator_id, name, x, y
+                self._devices.update_actuator_layout, actuator_id, name, x, y
             )
             if updated is None:
                 raise ActuatorNotFoundError(actuator_id)
-            return await self._publish_update(updated)
+            return await self._publish_actuator(updated)
 
     async def remove(self, actuator_id: str) -> None:
         async with self._exclusive(actuator_id):
-            if not await run_in_threadpool(self._db.delete_actuator, actuator_id):
+            if not await run_in_threadpool(self._devices.delete_actuator, actuator_id):
                 raise ActuatorNotFoundError(actuator_id)
             await self._hub.broadcast({"type": "actuator_removed", "id": actuator_id})
 
-    async def _publish_update(self, actuator: dict) -> dict:
+    async def update_sensor_layout(
+        self, sensor_id: str, name: str | None, x: float | None, y: float | None
+    ) -> dict:
+        async with self._exclusive(sensor_id):
+            updated = await run_in_threadpool(
+                self._devices.update_sensor_layout, sensor_id, name, x, y
+            )
+            if updated is None:
+                raise SensorNotFoundError(sensor_id)
+            await self._hub.broadcast({"type": "sensor_updated", "sensor": updated})
+            return updated
+
+    async def remove_sensor(self, sensor_id: str) -> None:
+        async with self._exclusive(sensor_id):
+            if not await run_in_threadpool(self._devices.delete_sensor, sensor_id):
+                raise SensorNotFoundError(sensor_id)
+            await self._hub.broadcast({"type": "sensor_removed", "id": sensor_id})
+
+    async def _publish_actuator(self, actuator: dict) -> dict:
         presented = present(actuator)
         await self._hub.broadcast({"type": "actuator_updated", "actuator": presented})
         return presented

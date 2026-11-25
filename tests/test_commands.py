@@ -3,7 +3,7 @@ import threading
 
 import pytest
 
-from khaleesi.commands import ActuatorBusyError, CommandService
+from khaleesi.commands import CommandService, DeviceBusyError
 
 
 class FakeDatabase:
@@ -47,7 +47,7 @@ def test_second_command_on_the_same_actuator_is_refused() -> None:
     async def scenario() -> None:
         first = asyncio.create_task(service.execute("v1", "OPEN", "alice"))
         await _wait_for(database.write_started)
-        with pytest.raises(ActuatorBusyError):
+        with pytest.raises(DeviceBusyError):
             await service.execute("v1", "CLOSED", "bob")
         database.allow_write.set()
         await first
