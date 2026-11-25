@@ -6,7 +6,7 @@ Khaleesi is a Software Engineering for Robotics team project. It aims to separat
 
 ## Project status
 
-A first version is under development. It provides sign-in, the three main tabs, P&ID loading, actuator placement, and actuator commands shared live between all connected screens.
+A first version is under development. It provides sign-in, tabs created by users (control tabs with their own P&ID, a live data tab, and pre-test checklists), valve, cylinder, and sensor settings, actuator commands, and an emergency stop, all shared live between connected screens.
 
 In this version:
 

@@ -1,86 +1,97 @@
 import { api } from './api.js';
+import { openActuatorDialog, openSensorDialog, openTypeDialog } from './dialogs.js';
 
 const byId = (id) => document.getElementById(id);
 const DRAG_THRESHOLD_PX = 3;
 const clamp = (value) => Math.min(1, Math.max(0, value));
 
-const SENSOR_KINDS = ['analog', 'digital'];
-
-function updateDevice(view, id, changes) {
-  return view.sensors.has(id) ? api.updateSensor(id, changes) : api.updateActuator(id, changes);
+function updateDevice(state, deviceId, changes) {
+  return state.isSensor(deviceId)
+    ? api.updateSensor(deviceId, changes)
+    : api.updateActuator(deviceId, changes);
 }
 
-/** Wires the layout tools: P&ID image, adding, renaming, removing, and dragging devices. */
-export function setupEditor(view) {
-  async function attempt(action) {
-    view.clearError();
-    try {
-      return await action();
-    } catch (failure) {
-      view.showError(view.describeFailure(failure));
-      return null;
-    }
+/** The layout tools of control tabs: P&ID image, adding, configuring, and moving devices. */
+export function setupEditor(state, view, { attempt }) {
+  const toggle = byId('edit-toggle');
+  const tools = byId('tools');
+  const collapse = byId('tools-collapse');
+
+  function setEditing(editing) {
+    state.editing = editing;
+    toggle.setAttribute('aria-pressed', String(editing));
+    toggle.lastElementChild.textContent = editing ? 'Done editing' : 'Edit layout';
+    byId('pid-viewport').classList.toggle('editing', editing);
+    tools.hidden = !editing;
+    view.render();
   }
 
-  const toggle = byId('edit-toggle');
-  toggle.addEventListener('click', () => {
-    const editing = !view.editing;
-    view.setEditing(editing);
-    toggle.setAttribute('aria-pressed', String(editing));
-    toggle.textContent = editing ? 'Done editing' : 'Edit layout';
-    byId('edit-tools').hidden = !editing;
+  toggle.addEventListener('click', () => setEditing(!state.editing));
+  collapse.addEventListener('click', () => {
+    const collapsed = tools.classList.toggle('collapsed');
+    collapse.setAttribute('aria-expanded', String(!collapsed));
+    collapse.setAttribute(
+      'aria-label',
+      collapsed ? 'Show the layout tools' : 'Hide the layout tools',
+    );
+    collapse.textContent = collapsed ? '‹' : '›';
   });
 
   byId('pid-file').addEventListener('change', async (event) => {
     const [file] = event.target.files;
     event.target.value = '';
-    if (file) await attempt(() => api.uploadPid(file));
+    if (file) await attempt(() => api.uploadPid(view.tabId, file));
   });
 
-  byId('edit-tools').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const nameInput = byId('new-name');
-    // New devices line up along the top instead of piling onto one another.
-    const x = 0.1 + (view.allDevices().length % 9) * 0.1;
-    const device = { name: nameInput.value, kind: byId('new-kind').value, x, y: 0.1 };
-    const add = SENSOR_KINDS.includes(device.kind) ? api.addSensor : api.addActuator;
-    const created = await attempt(() => add(device));
-    if (created) {
-      nameInput.value = '';
-      view.selectedId = created.id;
-      view.render();
-    }
-  });
+  // New devices line up along the top of the P&ID instead of piling onto one another.
+  function placement() {
+    const count = state.devicesOn(view.tabId).length;
+    return { tab_id: view.tabId, x: 0.08 + (count % 10) * 0.09, y: 0.06 };
+  }
 
-  byId('detail-edit').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const { selectedId, rename } = view;
-    await attempt(() => updateDevice(view, selectedId, { name: rename.value }));
-    rename.blur();
-  });
+  async function added(created) {
+    if (created) view.card.pin(created.id);
+  }
 
-  byId('detail-delete').addEventListener('click', async () => {
-    const device = view.deviceById(view.selectedId);
-    if (device && window.confirm(`Remove ${device.name}?`)) {
-      const remove = view.sensors.has(device.id) ? api.deleteSensor : api.deleteActuator;
-      await attempt(() => remove(device.id));
-    }
-  });
+  byId('add-actuator').addEventListener('click', async () =>
+    added(await openActuatorDialog({ placement: placement() })),
+  );
+  byId('add-sensor').addEventListener('click', async () =>
+    added(await openSensorDialog({ state, placement: placement() })),
+  );
+  byId('add-type').addEventListener('click', () => openTypeDialog());
 
-  setupDragging(view, attempt);
+  setupDragging(state, view, attempt);
+  return { setEditing };
 }
 
-function setupDragging(view, attempt) {
+/** Opens the settings of a device from its card. */
+export function editDevice(state, deviceId) {
+  const device = state.device(deviceId);
+  if (!device) return;
+  if (state.isSensor(deviceId)) openSensorDialog({ state, sensor: device });
+  else openActuatorDialog({ actuator: device });
+}
+
+export async function removeDevice(state, deviceId, attempt) {
+  const device = state.device(deviceId);
+  if (!device || !window.confirm(`Remove ${device.name}?`)) return;
+  const remove = state.isSensor(deviceId) ? api.deleteSensor : api.deleteActuator;
+  await attempt(() => remove(deviceId));
+}
+
+function setupDragging(state, view, attempt) {
+  const canvas = byId('pid-canvas');
   let drag = null;
 
   function restorePosition({ id, marker }) {
-    const device = view.deviceById(id);
+    const device = state.device(id);
     if (device) view.updateMarker(marker, device);
   }
 
   view.markers.addEventListener('pointerdown', (event) => {
     const marker = event.target.closest('.marker');
-    if (!view.editing || !marker) return;
+    if (!state.editing || !marker || event.button !== 0) return;
     marker.setPointerCapture(event.pointerId);
     drag = {
       marker,
@@ -96,12 +107,14 @@ function setupDragging(view, attempt) {
     const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
     if (!drag.moved && distance < DRAG_THRESHOLD_PX) return;
 
-    const stage = view.stage.getBoundingClientRect();
+    const box = canvas.getBoundingClientRect();
     drag.moved = true;
-    drag.x = clamp((event.clientX - stage.left) / stage.width);
-    drag.y = clamp((event.clientY - stage.top) / stage.height);
+    view.card.hoverEnd();
+    drag.x = clamp((event.clientX - box.left) / box.width);
+    drag.y = clamp((event.clientY - box.top) / box.height);
     drag.marker.style.left = `${drag.x * 100}%`;
     drag.marker.style.top = `${drag.y * 100}%`;
+    view.card.place();
   });
 
   view.markers.addEventListener('pointerup', async () => {
@@ -109,9 +122,11 @@ function setupDragging(view, attempt) {
     const finished = drag;
     drag = null;
     if (!finished.moved) return;
+    // The click that follows a drag must not open the card.
+    view.suppressClick = true;
 
     const position = { x: finished.x, y: finished.y };
-    const saved = await attempt(() => updateDevice(view, finished.id, position));
+    const saved = await attempt(() => updateDevice(state, finished.id, position));
     if (!saved) restorePosition(finished);
   });
 

@@ -6,122 +6,285 @@
     <title>Khaleesi</title>
     <link rel="stylesheet" href="/css/app.css" />
   </head>
-  <body>
+  <body class="app">
     <header class="topbar">
       <span class="brand">Khaleesi</span>
-      <nav class="tabs" role="tablist" aria-label="Main sections">
-        <button class="tab" role="tab" data-tab="control" aria-selected="true">Control</button>
-        <button class="tab" role="tab" data-tab="visualization" aria-selected="false">
-          Visualization
+      <nav id="tabs" class="tabs" role="tablist" aria-label="Tabs"></nav>
+      <div class="tab-add">
+        <button
+          id="tab-add"
+          class="icon-button"
+          aria-label="Add a tab"
+          aria-haspopup="menu"
+          aria-expanded="false"
+        >
+          +
         </button>
-        <button class="tab" role="tab" data-tab="recorded" aria-selected="false">
-          Recorded Data
-        </button>
-      </nav>
+        <div id="tab-add-menu" class="menu" role="menu" hidden>
+          <button class="menu-item" role="menuitem" data-type="control">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3 5h14v10H3zM7 5v10M3 10h4" />
+            </svg>
+            <span><b>Control</b><small>A P&amp;ID with valves and sensors</small></span>
+          </button>
+          <button class="menu-item" role="menuitem" data-type="data">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16h14M5 13l3-4 3 2 4-6" /></svg>
+            <span><b>Data</b><small>Live values of every sensor</small></span>
+          </button>
+          <button class="menu-item" role="menuitem" data-type="checklist">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M4 5l2 2 3-3M4 11l2 2 3-3M11 6h6M11 12h6" />
+            </svg>
+            <span><b>Checklist</b><small>Steps to tick before a test</small></span>
+          </button>
+        </div>
+      </div>
       <div class="session">
+        <span id="simulated" class="simulated" hidden title="Values are generated, not measured">
+          Simulated data
+        </span>
         <span id="connection-status" class="status" data-online="false">Connecting…</span>
         <span id="user-name" class="user-name"></span>
-        <button id="logout" class="button">Log out</button>
+        <button id="logout" class="button button-ghost">Log out</button>
+        <button id="emergency-stop" class="button button-stop" disabled>Emergency stop</button>
       </div>
     </header>
 
     <div id="connection-banner" class="banner" role="alert" hidden>
       Connection to the server lost. Commands are disabled while reconnecting.
     </div>
+    <div id="stop-banner" class="banner banner-stop" role="status" hidden></div>
+
+    <div id="tab-menu" class="menu tab-menu" role="menu" hidden>
+      <button class="menu-item" role="menuitem" data-action="rename">Rename</button>
+      <button class="menu-item" role="menuitem" data-action="left">Move left</button>
+      <button class="menu-item" role="menuitem" data-action="right">Move right</button>
+      <button class="menu-item menu-item-danger" role="menuitem" data-action="delete">
+        Delete
+      </button>
+    </div>
 
     <main class="content">
-      <section id="tab-control" role="tabpanel" aria-label="Control">
+      <p id="app-message" class="message message-error" role="alert" hidden></p>
+
+      <!-- Control tabs -->
+      <section id="view-control" class="view view-control" hidden>
         <div class="toolbar">
-          <button id="edit-toggle" class="button" aria-pressed="false">Edit layout</button>
-          <form id="edit-tools" class="edit-tools" hidden>
-            <label class="button">
-              Load P&amp;ID image
-              <input
-                id="pid-file"
-                class="visually-hidden"
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-              />
-            </label>
-            <input
-              id="new-name"
-              aria-label="New actuator name"
-              placeholder="Name, e.g. V-101"
-              maxlength="64"
-              required
-            />
-            <select id="new-kind" aria-label="New actuator type">
-              <option value="valve">Valve</option>
-              <option value="cylinder">Cylinder</option>
-            </select>
-            <button type="submit" class="button button-primary">Add actuator</button>
-            <button id="add-sensor" type="button" class="button button-primary">Add sensor</button>
-          </form>
+          <button id="edit-toggle" class="button" aria-pressed="false">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16l1-4 8-8 3 3-8 8z" /></svg>
+            <span>Edit layout</span>
+          </button>
+          <p class="toolbar-hint muted">
+            Point at a device to see its details. Click it to keep them open.
+          </p>
         </div>
 
-        <p id="control-message" class="message message-error" role="alert" hidden></p>
-
         <div class="workspace">
-          <div id="pid-stage" class="pid-stage">
-            <img
-              id="pid-image"
-              alt="Piping and instrumentation diagram of the test stand"
-              draggable="false"
-              hidden
-            />
-            <p id="pid-empty" class="pid-empty">
-              No P&amp;ID loaded yet. Choose “Edit layout” to load one.
-            </p>
-            <div id="markers"></div>
+          <div class="pid-frame">
+            <div id="pid-viewport" class="pid-viewport">
+              <div id="pid-canvas" class="pid-canvas">
+                <img
+                  id="pid-image"
+                  alt="Piping and instrumentation diagram"
+                  draggable="false"
+                  hidden
+                />
+                <p id="pid-empty" class="pid-empty">
+                  No P&amp;ID loaded for this tab. Choose “Edit layout”, then “Load P&amp;ID image”.
+                </p>
+                <div id="markers"></div>
+              </div>
+            </div>
+
+            <div class="legend" aria-hidden="true">
+              <span><i class="dot dot-ok"></i>Normal</span>
+              <span><i class="dot dot-alarm"></i>Out of range</span>
+              <span><i class="dot dot-none"></i>No recent data</span>
+            </div>
+            <div class="zoom" role="group" aria-label="Zoom">
+              <button id="zoom-out" aria-label="Zoom out">−</button>
+              <output id="zoom-level">100%</output>
+              <button id="zoom-in" aria-label="Zoom in">+</button>
+              <button id="zoom-fit">Fit</button>
+            </div>
           </div>
 
-          <aside class="detail" aria-label="Selected device">
-            <p id="detail-empty" class="muted">Select a device on the diagram.</p>
-            <div id="detail-body" hidden>
-              <h2 id="detail-name"></h2>
-              <dl class="facts">
-                <dt>Type</dt>
-                <dd id="detail-kind"></dd>
-                <dt id="detail-state-label">Commanded state</dt>
-                <dd id="detail-state" class="state-value"></dd>
-                <dt id="detail-updated-label">Last command</dt>
-                <dd id="detail-updated"></dd>
-              </dl>
-              <div id="detail-commands" class="commands"></div>
-              <form id="detail-edit" class="detail-edit" hidden>
-                <label for="detail-rename">Name</label>
-                <input id="detail-rename" maxlength="64" required />
-                <div class="detail-edit-actions">
-                  <button type="submit" class="button">Rename</button>
-                  <button id="detail-delete" type="button" class="button button-danger">
-                    Remove
-                  </button>
-                </div>
-              </form>
+          <aside id="tools" class="tools" aria-label="Layout tools" hidden>
+            <button
+              id="tools-collapse"
+              class="tools-collapse"
+              aria-expanded="true"
+              aria-label="Hide the layout tools"
+            >
+              ›
+            </button>
+            <div class="tools-body">
+              <h2>Layout</h2>
+              <label class="button tool">
+                Load P&amp;ID image
+                <input
+                  id="pid-file"
+                  class="visually-hidden"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                />
+              </label>
+              <button id="add-actuator" class="button button-primary tool">
+                Add valve or cylinder
+              </button>
+              <button id="add-sensor" class="button button-primary tool">Add sensor</button>
+              <button id="add-type" class="button tool">New sensor type</button>
+              <p class="field-hint">
+                New devices appear at the top of the P&amp;ID. Drag them onto their symbol. Click a
+                device to change its settings or remove it.
+              </p>
             </div>
           </aside>
         </div>
       </section>
 
-      <section id="tab-visualization" role="tabpanel" aria-label="Visualization" hidden>
-        <div class="empty-tab">
-          <h2>No data yet</h2>
-          <p class="muted">Live sensor graphs will appear here once sensors are connected.</p>
+      <!-- Data tabs -->
+      <section id="view-data" class="view" hidden>
+        <div class="page-head">
+          <div>
+            <h2>Live values</h2>
+            <p class="muted">Every sensor, with its last 60 seconds.</p>
+          </div>
         </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Sensor</th>
+              <th scope="col">Tab</th>
+              <th scope="col" class="numeric">Value</th>
+              <th scope="col">Normal range</th>
+              <th scope="col">Last 60 s</th>
+            </tr>
+          </thead>
+          <tbody id="data-rows"></tbody>
+        </table>
+        <p id="data-empty" class="empty-tab muted">No sensors yet. Add them on a control tab.</p>
+        <p class="field-hint">Recorded tests will appear here once measurements are stored.</p>
       </section>
 
-      <section id="tab-recorded" role="tabpanel" aria-label="Recorded Data" hidden>
-        <div class="empty-tab">
-          <h2>No data yet</h2>
-          <p class="muted">Recorded tests will appear here once measurements are stored.</p>
+      <!-- Checklist tabs -->
+      <section id="view-checklist" class="view view-checklist" hidden>
+        <div class="page-head">
+          <div>
+            <h2 id="checklist-title"></h2>
+            <p class="muted">Tick every step before the test.</p>
+          </div>
+          <div class="progress">
+            <span id="checklist-count"></span>
+            <div class="progress-bar"><i id="checklist-bar"></i></div>
+          </div>
         </div>
+        <ol id="steps" class="steps"></ol>
+        <p id="steps-empty" class="empty-tab muted">No steps yet.</p>
+        <form id="step-form" class="step-form">
+          <input
+            id="step-text"
+            aria-label="New step"
+            placeholder="New step, e.g. Cameras recording"
+            maxlength="200"
+            autocomplete="off"
+          />
+          <button type="submit" class="button">Add step</button>
+          <button id="steps-reset" type="button" class="button button-ghost">Untick all</button>
+        </form>
       </section>
     </main>
 
+    <!-- Floating card shown when pointing at a device, kept open by a click -->
+    <div id="card" class="card" hidden>
+      <div class="card-head">
+        <b id="card-name"></b>
+        <span id="card-tag" class="tag" hidden></span>
+        <button id="card-close" class="icon-button icon-button-small" aria-label="Close" hidden>
+          ✕
+        </button>
+      </div>
+      <div id="card-value" class="card-value"></div>
+      <dl id="card-facts" class="facts"></dl>
+      <div id="card-commands" class="commands"></div>
+      <div id="card-edit" class="commands" hidden>
+        <button id="card-settings" class="button">Settings</button>
+        <button id="card-remove" class="button button-danger">Remove</button>
+      </div>
+    </div>
+
+    <!-- Tab name -->
+    <dialog id="tab-dialog" class="dialog" aria-labelledby="tab-dialog-title">
+      <form id="tab-form" class="dialog-form" novalidate>
+        <h2 id="tab-dialog-title" class="dialog-title"></h2>
+        <div class="dialog-body">
+          <div class="field">
+            <label for="tab-name">Name</label>
+            <input id="tab-name" name="name" maxlength="32" autocomplete="off" />
+          </div>
+          <p class="form-error field-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="button" data-close>Cancel</button>
+          <button type="submit" class="button button-primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Valve or cylinder -->
+    <dialog id="actuator-dialog" class="dialog" aria-labelledby="actuator-dialog-title">
+      <form id="actuator-form" class="dialog-form" novalidate>
+        <h2 id="actuator-dialog-title" class="dialog-title"></h2>
+        <div class="dialog-body">
+          <div class="field">
+            <label for="actuator-name">Name</label>
+            <input
+              id="actuator-name"
+              name="name"
+              maxlength="64"
+              placeholder="As on the P&amp;ID, e.g. V-101"
+              autocomplete="off"
+            />
+          </div>
+          <div class="row">
+            <fieldset class="field">
+              <legend>Type</legend>
+              <div class="segmented">
+                <label><input type="radio" name="kind" value="valve" checked /> Valve</label>
+                <label><input type="radio" name="kind" value="cylinder" /> Cylinder</label>
+              </div>
+            </fieldset>
+            <div class="field">
+              <label for="actuator-pin">GPIO pin</label>
+              <input
+                id="actuator-pin"
+                name="pin"
+                type="number"
+                min="0"
+                max="27"
+                step="1"
+                placeholder="Not wired"
+              />
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Default state</legend>
+            <div id="actuator-defaults" class="segmented"></div>
+            <p class="field-hint">The state the emergency stop returns it to.</p>
+          </fieldset>
+          <p class="form-error field-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="button" data-close>Cancel</button>
+          <button type="submit" class="button button-primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Sensor -->
     <dialog id="sensor-dialog" class="dialog" aria-labelledby="sensor-dialog-title">
       <form id="sensor-form" class="dialog-form" novalidate>
-        <h2 id="sensor-dialog-title" class="dialog-title">Add sensor</h2>
-
+        <h2 id="sensor-dialog-title" class="dialog-title"></h2>
         <div class="dialog-body">
           <div class="field">
             <label for="sensor-name">Name</label>
@@ -131,32 +294,121 @@
               maxlength="64"
               placeholder="As on the P&amp;ID, e.g. PT-101"
               autocomplete="off"
-              aria-describedby="sensor-error"
             />
-            <p id="sensor-error" class="field-error" role="alert" hidden></p>
           </div>
+          <div class="row">
+            <fieldset class="field">
+              <legend>Signal</legend>
+              <div class="segmented">
+                <label><input type="radio" name="kind" value="analog" checked /> Analog</label>
+                <label><input type="radio" name="kind" value="digital" /> Digital</label>
+              </div>
+            </fieldset>
+            <div class="field">
+              <label for="sensor-type">Type</label>
+              <select id="sensor-type" name="type"></select>
+            </div>
+          </div>
+          <div class="field">
+            <label id="sensor-channel-label" for="sensor-channel">ADC channel</label>
+            <input
+              id="sensor-channel"
+              name="channel"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Not wired"
+            />
+          </div>
+          <div class="analog-only field">
+            <label for="sensor-formula">Conversion formula</label>
+            <input
+              id="sensor-formula"
+              name="formula"
+              maxlength="120"
+              placeholder="x, e.g. x * 50 / 1023"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <p class="field-hint">
+              x is the raw value. Use numbers, + − * / and parentheses. Empty keeps the raw value.
+            </p>
+          </div>
+          <div class="analog-only row row-3">
+            <div class="field">
+              <label for="sensor-unit">Unit</label>
+              <input id="sensor-unit" name="unit" maxlength="12" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="sensor-min">Minimum</label>
+              <input id="sensor-min" name="min" type="number" step="any" placeholder="None" />
+            </div>
+            <div class="field">
+              <label for="sensor-max">Maximum</label>
+              <input id="sensor-max" name="max" type="number" step="any" placeholder="None" />
+            </div>
+          </div>
+          <div class="analog-only field field-short">
+            <label for="sensor-decimals">Decimals</label>
+            <input id="sensor-decimals" name="decimals" type="number" min="0" max="4" step="1" />
+          </div>
+          <p class="form-error field-error" role="alert" hidden></p>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="button" data-close>Cancel</button>
+          <button type="submit" class="button button-primary">Save</button>
+        </div>
+      </form>
+    </dialog>
 
+    <!-- Sensor type -->
+    <dialog id="type-dialog" class="dialog" aria-labelledby="type-dialog-title">
+      <form id="type-form" class="dialog-form" novalidate>
+        <h2 id="type-dialog-title" class="dialog-title">New sensor type</h2>
+        <div class="dialog-body">
+          <div class="field">
+            <label for="type-label">Name</label>
+            <input
+              id="type-label"
+              name="label"
+              maxlength="32"
+              placeholder="e.g. Strain"
+              autocomplete="off"
+            />
+          </div>
           <fieldset class="field">
             <legend>Signal</legend>
             <div class="segmented">
-              <label><input type="radio" name="kind" value="analog" checked /> Analog</label>
-              <label><input type="radio" name="kind" value="digital" /> Digital</label>
+              <label><input type="radio" name="signal" value="analog" checked /> Analog</label>
+              <label><input type="radio" name="signal" value="digital" /> Digital</label>
             </div>
-            <p class="field-hint">
-              Analog for a measured value such as a pressure, digital for an on/off input. It cannot
-              be changed after the sensor is added.
-            </p>
           </fieldset>
-
+          <div class="analog-only row">
+            <div class="field">
+              <label for="type-unit">Usual unit</label>
+              <input id="type-unit" name="unit" maxlength="12" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="type-decimals">Decimals</label>
+              <input
+                id="type-decimals"
+                name="decimals"
+                type="number"
+                min="0"
+                max="4"
+                step="1"
+                value="2"
+              />
+            </div>
+          </div>
           <p class="field-hint">
-            The sensor appears at the top of the P&amp;ID. Drag it onto its symbol while editing the
-            layout.
+            The unit and decimals are suggested when a sensor of this type is added.
           </p>
+          <p class="form-error field-error" role="alert" hidden></p>
         </div>
-
         <div class="dialog-actions">
-          <button id="sensor-cancel" type="button" class="button">Cancel</button>
-          <button id="sensor-submit" type="submit" class="button button-primary">Add sensor</button>
+          <button type="button" class="button" data-close>Cancel</button>
+          <button type="submit" class="button button-primary">Add type</button>
         </div>
       </form>
     </dialog>
