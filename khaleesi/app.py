@@ -6,21 +6,24 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from khaleesi import actuators, auth, bench, events
+from khaleesi import actuators, auth, bench, devices, events
 from khaleesi.commands import (
-    ActuatorBusyError,
     ActuatorNotFoundError,
     CommandService,
+    DeviceBusyError,
     InvalidTargetError,
+    SensorNotFoundError,
 )
 from khaleesi.config import Settings
 from khaleesi.database import Database
+from khaleesi.device_store import DeviceStore
 
 _WEB_DIR = Path(__file__).parent / "web"
 
 _ERROR_RESPONSES = {
     ActuatorNotFoundError: (404, "This actuator no longer exists"),
-    ActuatorBusyError: (409, "Another operation is in progress on this actuator"),
+    SensorNotFoundError: (404, "This sensor no longer exists"),
+    DeviceBusyError: (409, "Another operation is in progress on this device"),
     InvalidTargetError: (422, "This state is not valid for this actuator"),
 }
 
@@ -41,19 +44,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     database = Database(settings.db_path)
     database.initialize()
+    device_store = DeviceStore(settings.devices_path)
+    device_store.initialize()
 
     app = FastAPI(title="Khaleesi", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.db = database
+    app.state.devices = device_store
     app.state.sessions = auth.SessionManager(settings.session_hours * 3600)
     app.state.throttle = auth.LoginThrottle(
         settings.login_max_failures, settings.login_block_seconds
     )
     app.state.hub = events.EventHub(app.state.sessions)
-    app.state.commands = CommandService(database, app.state.hub)
+    app.state.commands = CommandService(device_store, app.state.hub)
 
     _register_error_handlers(app)
-    for module in (auth, actuators, bench, events):
+    for module in (auth, actuators, bench, devices, events):
         app.include_router(module.router)
 
     def is_logged_in(request: Request) -> bool:

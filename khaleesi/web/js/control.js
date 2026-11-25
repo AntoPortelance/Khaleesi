@@ -2,13 +2,20 @@ import { api } from './api.js';
 
 const byId = (id) => document.getElementById(id);
 
-const KIND_LABELS = { valve: 'Valve', cylinder: 'Cylinder' };
+const KIND_LABELS = {
+  valve: 'Valve',
+  cylinder: 'Cylinder',
+  analog: 'Analog sensor',
+  digital: 'Digital sensor',
+};
 const COMMAND_LABELS = { OPEN: 'Open', CLOSED: 'Close', EXTENDED: 'Extend', RETRACTED: 'Retract' };
+const NO_SENSOR_DATA = 'No data';
 
-/** Holds the actuators shown on screen and draws the P&ID and the detail panel. */
+/** Holds the devices shown on screen and draws the P&ID and the detail panel. */
 export class ControlView {
   constructor() {
     this.actuators = new Map();
+    this.sensors = new Map();
     this.selectedId = null;
     this.pendingId = null;
     this.editing = false;
@@ -53,9 +60,25 @@ export class ControlView {
     return failure.status ? failure.message : 'The server cannot be reached.';
   }
 
-  replaceAll(actuators) {
-    this.actuators = new Map(actuators.map((actuator) => [actuator.id, actuator]));
-    if (!this.actuators.has(this.selectedId)) this.selectedId = null;
+  deviceById(id) {
+    return this.actuators.get(id) ?? this.sensors.get(id);
+  }
+
+  allDevices() {
+    return [...this.actuators.values(), ...this.sensors.values()];
+  }
+
+  replaceAll({ actuators, sensors }) {
+    const indexById = (devices) => new Map(devices.map((device) => [device.id, device]));
+    this.actuators = indexById(actuators);
+    this.sensors = indexById(sensors);
+    if (!this.deviceById(this.selectedId)) this.selectedId = null;
+    this.render();
+  }
+
+  removeDevice(devices, id) {
+    devices.delete(id);
+    if (this.selectedId === id) this.selectedId = null;
     this.render();
   }
 
@@ -63,10 +86,13 @@ export class ControlView {
     if (event.type === 'actuator_added' || event.type === 'actuator_updated') {
       this.actuators.set(event.actuator.id, event.actuator);
       this.render();
-    } else if (event.type === 'actuator_removed') {
-      this.actuators.delete(event.id);
-      if (this.selectedId === event.id) this.selectedId = null;
+    } else if (event.type === 'sensor_added' || event.type === 'sensor_updated') {
+      this.sensors.set(event.sensor.id, event.sensor);
       this.render();
+    } else if (event.type === 'actuator_removed') {
+      this.removeDevice(this.actuators, event.id);
+    } else if (event.type === 'sensor_removed') {
+      this.removeDevice(this.sensors, event.id);
     } else if (event.type === 'pid_changed') {
       this.refreshPid();
     }
@@ -96,14 +122,14 @@ export class ControlView {
 
   renderMarkers() {
     const existing = new Map([...this.markers.children].map((node) => [node.dataset.id, node]));
-    for (const actuator of this.actuators.values()) {
-      let marker = existing.get(actuator.id);
+    for (const device of this.allDevices()) {
+      let marker = existing.get(device.id);
       if (marker) {
-        existing.delete(actuator.id);
+        existing.delete(device.id);
       } else {
-        marker = this.createMarker(actuator.id);
+        marker = this.createMarker(device.id);
       }
-      this.updateMarker(marker, actuator);
+      this.updateMarker(marker, device);
     }
     existing.forEach((stale) => stale.remove());
   }
@@ -119,34 +145,40 @@ export class ControlView {
     return marker;
   }
 
-  updateMarker(marker, actuator) {
-    marker.dataset.state = actuator.state;
-    marker.setAttribute('aria-pressed', String(actuator.id === this.selectedId));
-    marker.style.left = `${actuator.x * 100}%`;
-    marker.style.top = `${actuator.y * 100}%`;
-    marker.firstChild.textContent = actuator.name;
-    marker.lastChild.textContent = actuator.state;
+  updateMarker(marker, device) {
+    const isSensor = this.sensors.has(device.id);
+    marker.dataset.category = isSensor ? 'sensor' : 'actuator';
+    marker.dataset.state = device.state ?? '';
+    marker.setAttribute('aria-pressed', String(device.id === this.selectedId));
+    marker.style.left = `${device.x * 100}%`;
+    marker.style.top = `${device.y * 100}%`;
+    marker.firstChild.textContent = device.name;
+    marker.lastChild.textContent = isSensor ? NO_SENSOR_DATA : device.state;
   }
 
   renderDetail() {
-    const actuator = this.actuators.get(this.selectedId);
-    byId('detail-empty').hidden = Boolean(actuator);
-    byId('detail-body').hidden = !actuator;
-    if (!actuator) return;
+    const device = this.deviceById(this.selectedId);
+    byId('detail-empty').hidden = Boolean(device);
+    byId('detail-body').hidden = !device;
+    if (!device) return;
 
-    byId('detail-name').textContent = actuator.name;
-    byId('detail-kind').textContent = KIND_LABELS[actuator.kind];
-    byId('detail-state').textContent = actuator.state;
-    byId('detail-updated').textContent = actuator.updated_at
-      ? `${actuator.updated_by}, ${new Date(actuator.updated_at).toLocaleTimeString()}`
+    const isSensor = this.sensors.has(device.id);
+    byId('detail-name').textContent = device.name;
+    byId('detail-kind').textContent = KIND_LABELS[device.kind];
+    byId('detail-state-label').textContent = isSensor ? 'Value' : 'Commanded state';
+    byId('detail-state').textContent = isSensor ? NO_SENSOR_DATA : device.state;
+    byId('detail-updated-label').hidden = isSensor;
+    byId('detail-updated').hidden = isSensor;
+    byId('detail-updated').textContent = device.updated_at
+      ? `${device.updated_by}, ${new Date(device.updated_at).toLocaleTimeString()}`
       : 'None yet';
 
     byId('detail-edit').hidden = !this.editing;
-    if (document.activeElement !== this.rename) this.rename.value = actuator.name;
+    if (document.activeElement !== this.rename) this.rename.value = device.name;
 
-    this.commands.hidden = this.editing;
+    this.commands.hidden = this.editing || isSensor;
     this.commands.replaceChildren(
-      ...actuator.allowed_states.map((target) => this.createCommandButton(actuator, target)),
+      ...(device.allowed_states ?? []).map((target) => this.createCommandButton(device, target)),
     );
   }
 

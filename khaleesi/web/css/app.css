@@ -299,6 +299,44 @@ select {
   border-left-color: var(--active);
 }
 
+/*
+ * Sensors are drawn without a frame, so the diagram stays readable: a dot on the sensor's
+ * position, with the name and the value beside it.
+ */
+.marker[data-category='sensor'] {
+  grid-template-columns: 10px auto;
+  column-gap: 6px;
+  align-items: center;
+  max-width: none;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 80%);
+  box-shadow: none;
+  white-space: nowrap;
+  /* The dot, not the label, sits on the sensor's position. */
+  transform: translate(-5px, -50%);
+}
+
+.marker[data-category='sensor']::before {
+  box-sizing: border-box;
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #3d4a55;
+  border-radius: 50%;
+  background: #fff;
+  content: '';
+}
+
+.marker[data-category='sensor'] .marker-name {
+  color: #3d4a55;
+}
+
+.marker[data-category='sensor'] > span:last-child {
+  color: #5a6873;
+}
+
 .marker[aria-pressed='true'] {
   outline: 2px solid var(--accent);
 }
@@ -311,7 +349,6 @@ select {
 }
 
 .editing .marker {
-  border-style: dashed;
   cursor: grab;
   touch-action: none;
 }
@@ -363,6 +400,135 @@ select {
 .detail-edit-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Sensor dialog */
+
+.dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgb(5 8 10 / 70%);
+}
+
+.dialog-form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 36px);
+}
+
+.dialog-title {
+  margin: 0;
+  padding: 18px 20px 0;
+}
+
+.dialog-body {
+  display: grid;
+  gap: 16px;
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.dialog input,
+.dialog select {
+  width: 100%;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field > label,
+.field > legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+fieldset.field > legend {
+  margin-bottom: 6px;
+}
+
+.field-hint,
+.field-error {
+  margin: 0;
+  font-size: 13px;
+}
+
+.field-hint {
+  color: var(--muted);
+}
+
+.field-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.segmented {
+  display: flex;
+  min-height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.segmented label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  color: var(--muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.segmented label + label {
+  border-left: 1px solid var(--line);
+}
+
+.segmented input {
+  position: absolute;
+  width: 1px;
+  min-height: 0;
+  opacity: 0;
+}
+
+.segmented label:has(input:checked) {
+  background: var(--panel-raised);
+  box-shadow: inset 0 -2px var(--accent);
+  color: var(--text);
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.field.invalid input {
+  border-color: var(--danger);
 }
 
 .empty-tab {

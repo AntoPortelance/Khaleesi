@@ -10,8 +10,8 @@ A first version is under development. It provides sign-in, the three main tabs, 
 
 In this version:
 
-- A command is applied as soon as the server receives a valid order: the state is written to the database and sent to every screen. **The displayed state is the commanded state.** No hardware is driven and no feedback is measured yet.
-- Sensor acquisition exists only as method signatures in `khaleesi/acquisition.py`, so the Visualization and Recorded Data tabs have no data to show.
+- A command is applied as soon as the server receives a valid order: the state is written to `data/devices.json` and sent to every screen. **The displayed state is the commanded state.** No hardware is driven and no feedback is measured yet.
+- Sensors can be created and placed on the P&ID, but acquisition exists only as method signatures in `khaleesi/acquisition.py`, so sensors have no values and the Visualization and Recorded Data tabs have no data to show.
 - Network access is limited to the Raspberry Pi's own Wi-Fi network. Internet access and multi-factor authentication are planned for later.
 
 The other features and technical choices below describe the intended system; they are not a list of verified, implemented capabilities.
@@ -57,7 +57,7 @@ The initial working version is scheduled for demonstration on **December 2, 2026
 | Web interface | HTML, CSS, and JavaScript, without a build step |
 | Server | Python and FastAPI; API, authentication, and test logic |
 | Client–server communication | HTTPS and WebSocket |
-| Data storage | SQLite |
+| Data storage | JSON file for sensors and actuators; SQLite for user accounts |
 | Hardware interface | Sensor acquisition and actuator control |
 | Prototype hardware | Raspberry Pi 5, LEDs, resistors, and an optional sensor |
 | Development tools | Visual Studio Code, Git, and GitHub |

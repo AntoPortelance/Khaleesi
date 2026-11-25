@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { ControlView } from './control.js';
 import { setupEditor } from './editor.js';
 import { connectEvents } from './events.js';
+import { setupSensorDialog } from './sensor-dialog.js';
 
 const byId = (id) => document.getElementById(id);
 
@@ -36,6 +37,7 @@ async function start() {
 
   const view = new ControlView();
   setupEditor(view);
+  setupSensorDialog(view);
 
   // Events received while the full state loads are replayed on top of it, so that a
   // change made during the load is not overwritten by the older snapshot.
@@ -46,9 +48,9 @@ async function start() {
     const current = ++generation;
     pendingEvents = [];
     try {
-      const actuators = await api.listActuators();
+      const devices = await api.listDevices();
       if (current !== generation) return;
-      view.replaceAll(actuators);
+      view.replaceAll(devices);
       view.refreshPid();
       pendingEvents.forEach((event) => view.applyEvent(event));
       pendingEvents = null;

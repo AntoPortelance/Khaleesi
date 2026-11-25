@@ -30,6 +30,10 @@ class Settings:
         return self.data_dir / "khaleesi.sqlite"
 
     @property
+    def devices_path(self) -> Path:
+        return self.data_dir / "devices.json"
+
+    @property
     def pid_path(self) -> Path:
         return self.data_dir / "pid_image"
 
